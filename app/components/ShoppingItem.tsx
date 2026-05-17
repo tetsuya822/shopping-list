@@ -28,11 +28,16 @@ export default function ShoppingItem({ item, onToggle, onDelete }: Props) {
         <p className={`text-base truncate ${item.checked ? 'line-through text-gray-400' : 'text-gray-800'}`}>
           {item.name}
         </p>
-        {category && (
-          <span className={`inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full mt-0.5 ${category.color}`}>
-            {category.emoji} {category.label}
+        <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+          {category && (
+            <span className={`inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full ${category.color}`}>
+              {category.emoji} {category.label}
+            </span>
+          )}
+          <span className="text-xs text-gray-400">
+            {new Date(item.createdAt).toLocaleDateString('ja-JP', { month: 'numeric', day: 'numeric' })}
           </span>
-        )}
+        </div>
       </div>
 
       <button

@@ -10,6 +10,7 @@ import ShoppingItemRow from './ShoppingItem'
 export default function ShoppingList() {
   const [items, setItems, loaded] = useLocalStorage<Item[]>('shopping-list-items', [])
   const [selectedCategory, setSelectedCategory] = useState('all')
+  const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
 
   const addItem = (name: string, categoryId: string) => {
     const newItem: Item = {
@@ -41,9 +42,12 @@ export default function ShoppingList() {
     }
   }
 
-  const filtered = selectedCategory === 'all'
+  const filtered = (selectedCategory === 'all'
     ? items
     : items.filter(item => item.categoryId === selectedCategory)
+  ).slice().sort((a, b) =>
+    sortOrder === 'newest' ? b.createdAt - a.createdAt : a.createdAt - b.createdAt
+  )
 
   const unchecked = filtered.filter(i => !i.checked)
   const checked = filtered.filter(i => i.checked)
@@ -64,14 +68,22 @@ export default function ShoppingList() {
         <div className="py-4">
           <div className="flex items-center justify-between mb-1">
             <h1 className="text-2xl font-bold text-gray-900">🛒 買い物リスト</h1>
-            {totalChecked > 0 && (
+            <div className="flex items-center gap-2">
               <button
-                onClick={clearChecked}
-                className="text-sm text-red-400 hover:text-red-500 font-medium"
+                onClick={() => setSortOrder(o => o === 'newest' ? 'oldest' : 'newest')}
+                className="text-xs text-gray-500 border border-gray-200 rounded-full px-2.5 py-1 flex items-center gap-1"
               >
-                購入済みを削除
+                {sortOrder === 'newest' ? '↓ 新しい順' : '↑ 古い順'}
               </button>
-            )}
+              {totalChecked > 0 && (
+                <button
+                  onClick={clearChecked}
+                  className="text-sm text-red-400 hover:text-red-500 font-medium"
+                >
+                  購入済みを削除
+                </button>
+              )}
+            </div>
           </div>
           <p className="text-sm text-gray-500">
             残り {items.filter(i => !i.checked).length} 品
