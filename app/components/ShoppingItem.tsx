@@ -11,6 +11,7 @@ type Props = {
 
 const ShoppingItem = memo(function ShoppingItem({ item, onToggle, onDelete }: Props) {
   const category = CATEGORIES.find(c => c.id === item.categoryId)
+  const qty = item.quantity ?? 1
 
   return (
     <div className={`flex items-center gap-3 px-4 py-3 transition-opacity ${item.checked ? 'opacity-50' : ''}`}>
@@ -26,13 +27,27 @@ const ShoppingItem = memo(function ShoppingItem({ item, onToggle, onDelete }: Pr
       </button>
 
       <div className="flex-1 min-w-0">
-        <p className={`text-base truncate ${item.checked ? 'line-through text-gray-400' : 'text-gray-800'}`}>
-          {item.name}
-        </p>
+        <div className="flex items-baseline gap-2">
+          <p className={`text-base truncate ${item.checked ? 'line-through text-gray-400' : 'text-gray-800'}`}>
+            {item.name}
+          </p>
+          {qty > 1 && (
+            <span className="flex-shrink-0 text-sm text-gray-500">×{qty}</span>
+          )}
+        </div>
+
         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
           {category && (
             <span className={`inline-flex items-center gap-0.5 text-xs px-1.5 py-0.5 rounded-full ${category.color}`}>
               {category.emoji} {category.label}
+            </span>
+          )}
+          {item.price !== undefined && (
+            <span className="text-xs text-gray-500">
+              ¥{item.price.toLocaleString()}
+              {qty > 1 && (
+                <span className="text-gray-400"> × {qty} = ¥{(item.price * qty).toLocaleString()}</span>
+              )}
             </span>
           )}
           <span className="text-xs text-gray-400">

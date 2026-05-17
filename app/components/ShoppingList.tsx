@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { ShoppingItem as Item, CATEGORIES } from '@/lib/types'
+import { ShoppingItem as Item, PriceHistory, CATEGORIES } from '@/lib/types'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import CategoryFilter from './CategoryFilter'
 import AddItemForm from './AddItemForm'
@@ -10,16 +10,25 @@ import ShoppingItemRow from './ShoppingItem'
 function isShoppingItemArray(data: unknown): data is Item[] {
   return (
     Array.isArray(data) &&
-    data.every(
-      item =>
-        typeof item === 'object' &&
-        item !== null &&
-        typeof (item as Item).id === 'string' &&
-        typeof (item as Item).name === 'string' &&
-        typeof (item as Item).categoryId === 'string' &&
-        typeof (item as Item).checked === 'boolean' &&
-        typeof (item as Item).createdAt === 'number',
+    data.every(item =>
+      typeof item === 'object' &&
+      item !== null &&
+      typeof (item as Item).id === 'string' &&
+      typeof (item as Item).name === 'string' &&
+      typeof (item as Item).categoryId === 'string' &&
+      typeof (item as Item).checked === 'boolean' &&
+      typeof (item as Item).createdAt === 'number' &&
+      ((item as Item).quantity === undefined || typeof (item as Item).quantity === 'number') &&
+      ((item as Item).price === undefined || typeof (item as Item).price === 'number'),
     )
+  )
+}
+
+function isPriceHistory(data: unknown): data is PriceHistory {
+  return (
+    typeof data === 'object' &&
+    data !== null &&
+    Object.values(data as object).every(v => typeof v === 'number')
   )
 }
 
@@ -29,18 +38,28 @@ export default function ShoppingList() {
     [],
     isShoppingItemArray,
   )
+  const [priceHistory, setPriceHistory] = useLocalStorage<PriceHistory>(
+    'shopping-list-price-history',
+    {},
+    isPriceHistory,
+  )
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
 
-  const addItem = (name: string, categoryId: string) => {
+  const addItem = (name: string, categoryId: string, quantity: number, price?: number) => {
     const newItem: Item = {
       id: crypto.randomUUID(),
       name,
       categoryId,
+      quantity,
+      price,
       checked: false,
       createdAt: Date.now(),
     }
     setItems(prev => [newItem, ...prev])
+    if (price !== undefined) {
+      setPriceHistory(prev => ({ ...prev, [name.trim().toLowerCase()]: price }))
+    }
   }
 
   const toggleItem = (id: string) => {
@@ -77,6 +96,23 @@ export default function ShoppingList() {
   const unchecked = filtered.filter(i => !i.checked)
   const checked = filtered.filter(i => i.checked)
   const totalChecked = items.filter(i => i.checked).length
+
+  // 未購入アイテムの合計金額（金額が設定されているもののみ）
+  const { total, partialCount } = useMemo(() => {
+    let sum = 0
+    let withPrice = 0
+    let withoutPrice = 0
+    for (const item of unchecked) {
+      const qty = item.quantity ?? 1
+      if (item.price !== undefined) {
+        sum += item.price * qty
+        withPrice++
+      } else {
+        withoutPrice++
+      }
+    }
+    return { total: sum, partialCount: withoutPrice > 0 && withPrice > 0 ? withoutPrice : 0 }
+  }, [unchecked])
 
   if (!loaded) {
     return (
@@ -115,13 +151,27 @@ export default function ShoppingList() {
             {totalChecked > 0 && ` / 購入済み ${totalChecked} 品`}
           </p>
         </div>
-        <div className="pb-3">
+
+        <div className="pb-2">
           <CategoryFilter
             selected={selectedCategory}
             onChange={setSelectedCategory}
             counts={counts}
           />
         </div>
+
+        {/* 合計金額 */}
+        {unchecked.length > 0 && (
+          <div className="flex items-baseline justify-end gap-2 pb-3">
+            {partialCount > 0 && (
+              <span className="text-xs text-gray-400">{partialCount}品は金額未入力</span>
+            )}
+            <span className="text-sm text-gray-500">合計</span>
+            <span className="text-lg font-bold text-indigo-600">
+              ¥{total.toLocaleString()}
+            </span>
+          </div>
+        )}
       </header>
 
       {/* Storage error banner */}
@@ -133,7 +183,7 @@ export default function ShoppingList() {
 
       {/* Body */}
       <main className="flex-1 px-4 py-4 space-y-4">
-        <AddItemForm onAdd={addItem} />
+        <AddItemForm onAdd={addItem} priceHistory={priceHistory} />
 
         {filtered.length === 0 ? (
           <div className="text-center py-16 text-gray-400">

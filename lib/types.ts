@@ -9,9 +9,14 @@ export type ShoppingItem = {
   id: string
   name: string
   categoryId: string
+  quantity?: number  // optional for backward compat; default 1
+  price?: number
   checked: boolean
   createdAt: number
 }
+
+// 商品名（正規化済み）→ 前回金額
+export type PriceHistory = Record<string, number>
 
 export const CATEGORIES: Category[] = [
   { id: 'all', label: 'すべて', emoji: '🛒', color: 'bg-gray-100 text-gray-700' },
