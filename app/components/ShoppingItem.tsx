@@ -7,9 +7,10 @@ type Props = {
   item: Item
   onToggle: (id: string) => void
   onDelete: (id: string) => void
+  onEdit: (item: Item) => void
 }
 
-const ShoppingItem = memo(function ShoppingItem({ item, onToggle, onDelete }: Props) {
+const ShoppingItem = memo(function ShoppingItem({ item, onToggle, onDelete, onEdit }: Props) {
   const category = CATEGORIES.find(c => c.id === item.categoryId)
   const qty = item.quantity ?? 1
 
@@ -18,9 +19,7 @@ const ShoppingItem = memo(function ShoppingItem({ item, onToggle, onDelete }: Pr
       <button
         onClick={() => onToggle(item.id)}
         className={`flex-shrink-0 w-6 h-6 rounded-full border-2 flex items-center justify-center transition-all ${
-          item.checked
-            ? 'bg-indigo-500 border-indigo-500'
-            : 'border-gray-300'
+          item.checked ? 'bg-indigo-500 border-indigo-500' : 'border-gray-300'
         }`}
       >
         {item.checked && <span className="text-white text-xs">✓</span>}
@@ -31,9 +30,7 @@ const ShoppingItem = memo(function ShoppingItem({ item, onToggle, onDelete }: Pr
           <p className={`text-base truncate ${item.checked ? 'line-through text-gray-400' : 'text-gray-800'}`}>
             {item.name}
           </p>
-          {qty > 1 && (
-            <span className="flex-shrink-0 text-sm text-gray-500">×{qty}</span>
-          )}
+          {qty > 1 && <span className="flex-shrink-0 text-sm text-gray-500">×{qty}</span>}
         </div>
 
         <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
@@ -56,6 +53,16 @@ const ShoppingItem = memo(function ShoppingItem({ item, onToggle, onDelete }: Pr
         </div>
       </div>
 
+      {/* 編集ボタン */}
+      <button
+        onClick={() => onEdit(item)}
+        className="flex-shrink-0 w-7 h-7 flex items-center justify-center text-gray-300 hover:text-indigo-400 transition-colors rounded-full hover:bg-indigo-50"
+        aria-label="編集"
+      >
+        ✎
+      </button>
+
+      {/* 削除ボタン */}
       <button
         onClick={() => onDelete(item.id)}
         className="flex-shrink-0 w-7 h-7 flex items-center justify-center text-gray-300 hover:text-red-400 transition-colors rounded-full hover:bg-red-50"

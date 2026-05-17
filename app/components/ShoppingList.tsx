@@ -1,11 +1,13 @@
 'use client'
 
 import { useState, useMemo } from 'react'
-import { ShoppingItem as Item, PriceHistory, CATEGORIES } from '@/lib/types'
+import { ShoppingItem as Item, PriceHistory } from '@/lib/types'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import CategoryFilter from './CategoryFilter'
 import AddItemForm from './AddItemForm'
 import ShoppingItemRow from './ShoppingItem'
+import EditItemModal from './EditItemModal'
+import Calendar, { toDateKey } from './Calendar'
 
 function isShoppingItemArray(data: unknown): data is Item[] {
   return (
@@ -45,6 +47,9 @@ export default function ShoppingList() {
   )
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
+  const [editingItem, setEditingItem] = useState<Item | null>(null)
+  const [showCalendar, setShowCalendar] = useState(false)
+  const [selectedDate, setSelectedDate] = useState<Date | null>(null)
 
   const addItem = (name: string, categoryId: string, quantity: number, price?: number) => {
     const newItem: Item = {
@@ -62,6 +67,14 @@ export default function ShoppingList() {
     }
   }
 
+  const editItem = (id: string, updates: Pick<Item, 'name' | 'categoryId' | 'quantity' | 'price'>) => {
+    setItems(prev => prev.map(item => item.id === id ? { ...item, ...updates } : item))
+    if (updates.price !== undefined) {
+      setPriceHistory(prev => ({ ...prev, [updates.name.trim().toLowerCase()]: updates.price! }))
+    }
+    setEditingItem(null)
+  }
+
   const toggleItem = (id: string) => {
     setItems(prev => prev.map(item => item.id === id ? { ...item, checked: !item.checked } : item))
   }
@@ -74,6 +87,12 @@ export default function ShoppingList() {
     setItems(prev => prev.filter(item => !item.checked))
   }
 
+  const handleSelectDate = (date: Date | null) => {
+    setSelectedDate(date)
+    if (date) setShowCalendar(false)
+  }
+
+  // カテゴリ別の未購入数
   const counts = useMemo(() => {
     const result: Record<string, number> = {}
     for (const item of items) {
@@ -84,32 +103,42 @@ export default function ShoppingList() {
     return result
   }, [items])
 
-  const filtered = useMemo(() => (
-    (selectedCategory === 'all'
+  // 商品が存在する日付の Set（カレンダーの印用）
+  const itemDates = useMemo(() => {
+    const set = new Set<string>()
+    for (const item of items) {
+      set.add(toDateKey(new Date(item.createdAt)))
+    }
+    return set
+  }, [items])
+
+  // フィルタリング・ソート
+  const filtered = useMemo(() => {
+    let result = selectedCategory === 'all'
       ? items
       : items.filter(item => item.categoryId === selectedCategory)
-    ).slice().sort((a, b) =>
+
+    if (selectedDate) {
+      const key = toDateKey(selectedDate)
+      result = result.filter(item => toDateKey(new Date(item.createdAt)) === key)
+    }
+
+    return result.slice().sort((a, b) =>
       sortOrder === 'newest' ? b.createdAt - a.createdAt : a.createdAt - b.createdAt
     )
-  ), [items, selectedCategory, sortOrder])
+  }, [items, selectedCategory, selectedDate, sortOrder])
 
   const unchecked = filtered.filter(i => !i.checked)
   const checked = filtered.filter(i => i.checked)
   const totalChecked = items.filter(i => i.checked).length
 
-  // 未購入アイテムの合計金額（金額が設定されているもののみ）
+  // 未購入アイテムの合計金額
   const { total, partialCount } = useMemo(() => {
-    let sum = 0
-    let withPrice = 0
-    let withoutPrice = 0
+    let sum = 0, withPrice = 0, withoutPrice = 0
     for (const item of unchecked) {
       const qty = item.quantity ?? 1
-      if (item.price !== undefined) {
-        sum += item.price * qty
-        withPrice++
-      } else {
-        withoutPrice++
-      }
+      if (item.price !== undefined) { sum += item.price * qty; withPrice++ }
+      else withoutPrice++
     }
     return { total: sum, partialCount: withoutPrice > 0 && withPrice > 0 ? withoutPrice : 0 }
   }, [unchecked])
@@ -132,15 +161,12 @@ export default function ShoppingList() {
             <div className="flex items-center gap-2">
               <button
                 onClick={() => setSortOrder(o => o === 'newest' ? 'oldest' : 'newest')}
-                className="text-xs text-gray-500 border border-gray-200 rounded-full px-2.5 py-1 flex items-center gap-1"
+                className="text-xs text-gray-500 border border-gray-200 rounded-full px-2.5 py-1"
               >
                 {sortOrder === 'newest' ? '↓ 新しい順' : '↑ 古い順'}
               </button>
               {totalChecked > 0 && (
-                <button
-                  onClick={clearChecked}
-                  className="text-sm text-red-400 hover:text-red-500 font-medium"
-                >
+                <button onClick={clearChecked} className="text-sm text-red-400 font-medium">
                   購入済みを削除
                 </button>
               )}
@@ -153,11 +179,7 @@ export default function ShoppingList() {
         </div>
 
         <div className="pb-2">
-          <CategoryFilter
-            selected={selectedCategory}
-            onChange={setSelectedCategory}
-            counts={counts}
-          />
+          <CategoryFilter selected={selectedCategory} onChange={setSelectedCategory} counts={counts} />
         </div>
 
         {/* 合計金額 */}
@@ -167,9 +189,7 @@ export default function ShoppingList() {
               <span className="text-xs text-gray-400">{partialCount}品は金額未入力</span>
             )}
             <span className="text-sm text-gray-500">合計</span>
-            <span className="text-lg font-bold text-indigo-600">
-              ¥{total.toLocaleString()}
-            </span>
+            <span className="text-lg font-bold text-indigo-600">¥{total.toLocaleString()}</span>
           </div>
         )}
       </header>
@@ -183,18 +203,68 @@ export default function ShoppingList() {
 
       {/* Body */}
       <main className="flex-1 px-4 py-4 space-y-4">
+
+        {/* カレンダートグル */}
+        <div>
+          <button
+            onClick={() => setShowCalendar(v => !v)}
+            className={`w-full flex items-center justify-between px-4 py-3 rounded-2xl border text-sm font-medium transition-colors ${
+              selectedDate
+                ? 'bg-indigo-50 border-indigo-200 text-indigo-700'
+                : 'bg-white border-gray-100 text-gray-600'
+            }`}
+          >
+            <span className="flex items-center gap-2">
+              <span>📅</span>
+              {selectedDate
+                ? `${selectedDate.getFullYear()}年${selectedDate.getMonth() + 1}月${selectedDate.getDate()}日の商品`
+                : 'カレンダーで日付絞り込み'}
+            </span>
+            <span className={`text-gray-400 transition-transform ${showCalendar ? 'rotate-180' : ''}`}>▼</span>
+          </button>
+
+          {showCalendar && (
+            <div className="mt-2">
+              <Calendar
+                itemDates={itemDates}
+                selectedDate={selectedDate}
+                onSelectDate={handleSelectDate}
+              />
+            </div>
+          )}
+
+          {selectedDate && !showCalendar && (
+            <div className="mt-1 flex justify-end">
+              <button
+                onClick={() => setSelectedDate(null)}
+                className="text-xs text-indigo-400 underline"
+              >
+                絞り込みを解除
+              </button>
+            </div>
+          )}
+        </div>
+
         <AddItemForm onAdd={addItem} priceHistory={priceHistory} />
 
         {filtered.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
-            <p className="text-5xl mb-3">🛍️</p>
+            <p className="text-5xl mb-3">{selectedDate ? '📅' : '🛍️'}</p>
             <p className="text-base">商品がありません</p>
-            <p className="text-sm mt-1">上のフォームから追加してください</p>
+            <p className="text-sm mt-1">
+              {selectedDate ? 'この日に追加した商品はありません' : '上のフォームから追加してください'}
+            </p>
           </div>
         ) : (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 divide-y divide-gray-50">
             {unchecked.map(item => (
-              <ShoppingItemRow key={item.id} item={item} onToggle={toggleItem} onDelete={deleteItem} />
+              <ShoppingItemRow
+                key={item.id}
+                item={item}
+                onToggle={toggleItem}
+                onDelete={deleteItem}
+                onEdit={setEditingItem}
+              />
             ))}
 
             {checked.length > 0 && (
@@ -205,13 +275,28 @@ export default function ShoppingList() {
                   </div>
                 )}
                 {checked.map(item => (
-                  <ShoppingItemRow key={item.id} item={item} onToggle={toggleItem} onDelete={deleteItem} />
+                  <ShoppingItemRow
+                    key={item.id}
+                    item={item}
+                    onToggle={toggleItem}
+                    onDelete={deleteItem}
+                    onEdit={setEditingItem}
+                  />
                 ))}
               </>
             )}
           </div>
         )}
       </main>
+
+      {/* 編集モーダル */}
+      {editingItem && (
+        <EditItemModal
+          item={editingItem}
+          onSave={editItem}
+          onCancel={() => setEditingItem(null)}
+        />
+      )}
     </div>
   )
 }
