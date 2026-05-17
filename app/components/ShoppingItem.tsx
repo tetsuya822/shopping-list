@@ -1,5 +1,6 @@
 'use client'
 
+import { memo } from 'react'
 import { ShoppingItem as Item, CATEGORIES } from '@/lib/types'
 
 type Props = {
@@ -8,7 +9,7 @@ type Props = {
   onDelete: (id: string) => void
 }
 
-export default function ShoppingItem({ item, onToggle, onDelete }: Props) {
+const ShoppingItem = memo(function ShoppingItem({ item, onToggle, onDelete }: Props) {
   const category = CATEGORIES.find(c => c.id === item.categoryId)
 
   return (
@@ -49,4 +50,6 @@ export default function ShoppingItem({ item, onToggle, onDelete }: Props) {
       </button>
     </div>
   )
-}
+})
+
+export default ShoppingItem

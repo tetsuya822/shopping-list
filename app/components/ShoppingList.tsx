@@ -1,14 +1,34 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useMemo } from 'react'
 import { ShoppingItem as Item, CATEGORIES } from '@/lib/types'
 import { useLocalStorage } from '@/lib/useLocalStorage'
 import CategoryFilter from './CategoryFilter'
 import AddItemForm from './AddItemForm'
 import ShoppingItemRow from './ShoppingItem'
 
+function isShoppingItemArray(data: unknown): data is Item[] {
+  return (
+    Array.isArray(data) &&
+    data.every(
+      item =>
+        typeof item === 'object' &&
+        item !== null &&
+        typeof (item as Item).id === 'string' &&
+        typeof (item as Item).name === 'string' &&
+        typeof (item as Item).categoryId === 'string' &&
+        typeof (item as Item).checked === 'boolean' &&
+        typeof (item as Item).createdAt === 'number',
+    )
+  )
+}
+
 export default function ShoppingList() {
-  const [items, setItems, loaded] = useLocalStorage<Item[]>('shopping-list-items', [])
+  const [items, setItems, loaded, storageError] = useLocalStorage<Item[]>(
+    'shopping-list-items',
+    [],
+    isShoppingItemArray,
+  )
   const [selectedCategory, setSelectedCategory] = useState('all')
   const [sortOrder, setSortOrder] = useState<'newest' | 'oldest'>('newest')
 
@@ -35,19 +55,24 @@ export default function ShoppingList() {
     setItems(prev => prev.filter(item => !item.checked))
   }
 
-  const counts: Record<string, number> = {}
-  for (const item of items) {
-    if (!item.checked) {
-      counts[item.categoryId] = (counts[item.categoryId] ?? 0) + 1
+  const counts = useMemo(() => {
+    const result: Record<string, number> = {}
+    for (const item of items) {
+      if (!item.checked) {
+        result[item.categoryId] = (result[item.categoryId] ?? 0) + 1
+      }
     }
-  }
+    return result
+  }, [items])
 
-  const filtered = (selectedCategory === 'all'
-    ? items
-    : items.filter(item => item.categoryId === selectedCategory)
-  ).slice().sort((a, b) =>
-    sortOrder === 'newest' ? b.createdAt - a.createdAt : a.createdAt - b.createdAt
-  )
+  const filtered = useMemo(() => (
+    (selectedCategory === 'all'
+      ? items
+      : items.filter(item => item.categoryId === selectedCategory)
+    ).slice().sort((a, b) =>
+      sortOrder === 'newest' ? b.createdAt - a.createdAt : a.createdAt - b.createdAt
+    )
+  ), [items, selectedCategory, sortOrder])
 
   const unchecked = filtered.filter(i => !i.checked)
   const checked = filtered.filter(i => i.checked)
@@ -98,6 +123,13 @@ export default function ShoppingList() {
           />
         </div>
       </header>
+
+      {/* Storage error banner */}
+      {storageError && (
+        <div className="mx-4 mt-3 px-4 py-2.5 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+          ⚠️ {storageError}
+        </div>
+      )}
 
       {/* Body */}
       <main className="flex-1 px-4 py-4 space-y-4">

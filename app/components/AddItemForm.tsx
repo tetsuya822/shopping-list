@@ -25,7 +25,10 @@ export default function AddItemForm({ onAdd }: Props) {
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
       <button
-        onClick={() => setOpen(o => !o)}
+        onClick={() => setOpen(o => {
+          if (o) { setName(''); setCategoryId('other') }
+          return !o
+        })}
         className="w-full flex items-center justify-between px-4 py-3.5 text-left"
       >
         <div className="flex items-center gap-2 text-indigo-600 font-semibold">
